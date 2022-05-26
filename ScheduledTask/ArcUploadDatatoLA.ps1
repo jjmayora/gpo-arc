@@ -1,6 +1,6 @@
 ﻿<#
 .DESCRIPTION
-    This Scheduled task parses XMLs files created by the EnableArc.ps1 NETLOGON onboarding script
+    This Scheduled task parses XMLs files created by the EnableArc.ps1 onboarding script
     The information is uploaded to a Log Analytics workspace for further analysis using a workbook
 
     NOTE: XMLs files older than 24h. are automatically deleted.

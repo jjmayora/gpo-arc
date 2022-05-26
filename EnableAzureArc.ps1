@@ -1,6 +1,6 @@
 <#
 .DESCRIPTION
-    This Script is meant to be in the NETLOGON folder and onboards a server in Azure Arc
+    This Script is meant to be in a network share and onboards a server in Azure Arc
     using a Service Principal:
     https://docs.microsoft.com/en-us/azure/azure-arc/servers/onboard-service-principal#create-a-service-principal-for-onboarding-at-scale
    
@@ -11,7 +11,7 @@
         - Checks PowerShell Version
  
     If the server doesn't pass the requirements, all the information from the server: OS, Framework version,
-    PowerShell version, VM type ... is stored in a netlogon share for further analisys.
+    PowerShell version, VM type ... is stored in a network share for further analisys.
 
     If the server pass the requirements, the script checks if the Azure Hybrid Instance Metadata Service is already installed
 
@@ -25,13 +25,13 @@
 
         In positive case, the script:
 
-        - Checks azcmagent.exe version and updates the agent if a new version is found in NETLOGON folder
+        - Checks azcmagent.exe version and updates the agent if a new version is found in the network folder
         - Checks its connection status
         - In case the server is disconnected it logs the last errors from the azcmagent.exe Agent on the shared folder
 
 
-.PARAMETER Netlogonsubfolder
-   Name of the folder under Netlogon share
+.PARAMETER ReportServerFQDN
+   FQDN of the Server that will act as report Server (and source files)
    
 .PARAMETER AgentProxy
    Url of the proxy in case is used. 
@@ -57,6 +57,8 @@
 Param (
     [Parameter(Mandatory = $true)]
     [System.String]$ArcRemoteShare,
+    [Parameter(Mandatory = $true)]
+    [System.String]$ReportServerFQDN,
     [System.String]$AgentProxy,
     [switch]$AssessOnly
 )
@@ -78,8 +80,6 @@ $tags = @{ # Tags to be added to the Arc servers
 
 $workfolder = "C:\temp"
 $logpath = "$workfolder\AzureArcOnboarding.log" #Local log file
-$ReportServerFQDN = "Server.contoso.com" #Server's FQDN where AzureConnectedMachineAgent.msi and EnableAzureArc.ps1 files will be. This server is used as report server as well
-
 ###########################################################################################################
 
 #region Functions Definition
@@ -138,11 +138,11 @@ Function Install-ArcAgent {
 
     # Install the package
     if (-not (Test-Path "$SourceFilesFullPath\AzureConnectedMachineAgent.msi" -ErrorAction SilentlyContinue)) {
-        Write-Log -msg "AzureConnectedMachineAgent.msi file not found in the Netlogon folder. Exiting... " -msgtype ERROR
+        Write-Log -msg "AzureConnectedMachineAgent.msi file not found in the network folder. Exiting... " -msgtype ERROR
         exit
     }
 
-    # If no local msi found, downloads it from netlogon
+    # If no local msi found, downloads it from the network share
     if (-not (Test-Path "$env:TEMP\AzureConnectedMachineAgent.msi" -ErrorAction SilentlyContinue)) {
         Copy-Item -Path "$SourceFilesFullPath\AzureConnectedMachineAgent.msi" -Destination "$env:TEMP" -Force
     }
@@ -191,14 +191,14 @@ Function Update-ArcAgentVersion {
     #Checks Current Agent Version
     [Version]$LocalAgentVersion = (Get-ArcAgentstatus).Agentversion
     
-    #Checks Netlogon version
-    [Version]$NetlogonAgentVersion = (Get-MsiVersion -path "$SourceFilesFullPath\AzureConnectedMachineAgent.msi")[1]
+    #Checks network share version
+    [Version]$NetworkShareVersion = (Get-MsiVersion -path "$SourceFilesFullPath\AzureConnectedMachineAgent.msi")[1]
     #Compare versions
 
 
-    if ($LocalAgentVersion -ne $NetlogonAgentVersion) {
+    if ($LocalAgentVersion -ne $NetworkShareVersion) {
         # New Agent Version Found
-        Write-Log -msg "New Agent version found in NetLogon folder: $($NetlogonAgentVersion.ToString()) , local version is $($LocalAgentVersion.ToString()). Executing update ..." -msgtype WARNING
+        Write-Log -msg "New Agent version found in network share folder: $($NetworkShareVersion.ToString()) , local version is $($LocalAgentVersion.ToString()). Executing update ..." -msgtype WARNING
     
 
         # Download the package
@@ -364,13 +364,12 @@ Function Write-Log {
 #endregion
 
 
-
 # MAIN
 
 #Calculate Logging path
 $LoggingNetworkPath = "$((Join-Path -Path "\\$ReportServerFQDN" -ChildPath $ArcRemoteShare) -replace "\\$")" + "\AzureArcLogging"
 
-#Calculate Netlogon full path
+#Calculate network full path
 $SourceFilesFullPath = "$((Join-Path -Path "\\$ReportServerFQDN" -ChildPath $ArcRemoteShare) -replace "\\$")" + "\AzureArcDeploy"
 
 if (-not (Test-Path $workfolder))
@@ -401,14 +400,9 @@ $hash = @{
     httpsProxy          = ""
 }
 
-
-
-
 $ArcOnboardingData = New-Object -TypeName PSobject -Property $hash
 
-
 # Check Framework version
-
 $FrameworkRegistry = "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Client"
 try {
     Test-Path -Path $FrameworkRegistry -ErrorAction Stop | Out-Null
@@ -424,8 +418,6 @@ catch {
 
 }
 
-
-
 if (($FWVersion.major -lt 4) -or (($FWVersion.Major -eq 4) -and ($FWVersion.Minor -lt 6))) {
     Write-Log -msg "Framework version $($FWVersion.ToString()) is unsupported" -msgtype ERROR    
     
@@ -435,7 +427,6 @@ if (($FWVersion.major -lt 4) -or (($FWVersion.Major -eq 4) -and ($FWVersion.Mino
 else { 
     Write-Log -msg "Machine has Framework version $($FWVersion.ToString()), this is supported" -msgtype INFO
 }
-
 
 #Check PowerShell Version (Powershell 5 is required)
 

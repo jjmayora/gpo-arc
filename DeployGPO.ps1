@@ -9,7 +9,7 @@
     - Deploys the Azure Arc Servers Onboarding GPO in the local domain as 
       '[MSFT] Azure Arc Servers Onboarding<Timestamp>'
       
-    - Copies the EnableAzureArc.ps1 onboarding script to the NETLOGON Share
+    - Copies the EnableAzureArc.ps1 onboarding script to the network Share
 
 .PARAMETER DomainFQDN
    FQDN of the Domain to Deploy e.g. contoso.com
@@ -184,11 +184,21 @@ if ($PSBoundParameters.ContainsKey('AgentProxy')) {
 
     try {
         $xmlcontent = Get-Content -Path $ScheduledTaskfile -ErrorAction Stop
-        ($xmlcontent -replace "EnableAzureArc.ps1 -ArcRemoteShare", "EnableAzureArc.ps1 -AgentProxy $AgentProxy -ArcRemoteShare") | Out-File $ScheduledTaskfile -Encoding utf8 -Force -ErrorAction Stop
+        ($xmlcontent -replace "EnableAzureArc.ps1 -ArcRemoteShare", "EnableAzureArc.ps1 -ReportServerFQDN $ReportServerFQDN -AgentProxy $AgentProxy -ArcRemoteShare") | Out-File $ScheduledTaskfile -Encoding utf8 -Force -ErrorAction Stop
         Write-Host "Proxy information was successfully added to the scheduled task" -ForegroundColor Green
     }
     catch { Write-Host "Could not add Proxy Information:`n$(($_.Exception).Message)" -ForegroundColor Red ; exit }
     
+} 
+else {
+    Write-Host "`nAdding ReportServerFQDN $ReportServerFQDN to the scheduled task ..." -ForegroundColor Green
+
+    try {
+        $xmlcontent = Get-Content -Path $ScheduledTaskfile -ErrorAction Stop
+        ($xmlcontent -replace "EnableAzureArc.ps1 -ArcRemoteShare", "EnableAzureArc.ps1 -ReportServerFQDN $ReportServerFQDN -ArcRemoteShare") | Out-File $ScheduledTaskfile -Encoding utf8 -Force -ErrorAction Stop
+        Write-Host "ReportServerFQDN was successfully added to the scheduled task" -ForegroundColor Green
+    }
+    catch { Write-Host "Could not add ReportServerFQDN:`n$(($_.Exception).Message)" -ForegroundColor Red ; exit }
 }
 
 #Replacing the RegistrationInfo in the registry preference task

@@ -1,6 +1,6 @@
 ﻿<#
 .DESCRIPTION
-    This Script parses XMLs files created by the EnableArc.ps1 NETLOGON onboarding script
+    This Script parses XMLs files created by the EnableArc.ps1 onboarding script
     The information it shown in the screen and exported to the AzureArcOnboardingprerequisites.csv
     CSV file.
 
